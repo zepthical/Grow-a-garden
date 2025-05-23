@@ -90,7 +90,7 @@ local function glitchTeleport(pos)
     if not root then return end
     willlooptp = true
     task.wait(0.1)
-    looptp(root, pos + Vector3.new(0, -5, 0))
+    looptp(root, pos + Vector3.new(0, -2, 0))
 end
 
 local function parseMoney(moneyStr)
@@ -362,6 +362,93 @@ local function OpenBloodShop()
     local Bs = lp.PlayerGui.EventShop_UI
     Bs.Enabled = not Bs.Enabled
 end
+
+-- Auto Buy Egg
+local Autoegg_npc = workspace:WaitForChild("NPCS"):WaitForChild("Pet Stand")
+local Autoegg_timer = Autoegg_npc.Timer.SurfaceGui:WaitForChild("ResetTimeLabel")
+local Autoegg_eggLocations = Autoegg_npc:WaitForChild("EggLocations")
+local Autoegg_events = game:GetService("ReplicatedStorage"):WaitForChild("GameEvents")
+
+local Autoegg_autoBuyEnabled = false
+local Autoegg_firstRun = true
+
+local player = game.Players.LocalPlayer
+local originalCFrame = player.Character and player.Character:WaitForChild("HumanoidRootPart").CFrame or CFrame.new()
+local targetCFrame = CFrame.new(-255.12291, 2.99999976, -1.13749218, -0.0163238496, 1.05261321e-07, 0.999866784, -5.92361182e-09, 1, -1.0537206e-07, -0.999866784, -7.64290053e-09, -0.0163238496)
+
+local function Autoegg_safeFirePrompt(prompt)
+    if prompt then
+        pcall(function()
+            fireproximityprompt(prompt)
+        end)
+    end
+end
+
+local function Autoegg_safeFireServer(id)
+    pcall(function()
+        Autoegg_events:WaitForChild("BuyPetEgg"):FireServer(id)
+    end)
+end
+
+local function Autoegg_setAlwaysShow()
+    for _, obj in ipairs(Autoegg_eggLocations:GetChildren()) do
+        for _, child in ipairs(obj:GetDescendants()) do
+            if child:IsA("ProximityPrompt") then
+                child.Exclusivity = Enum.ProximityPromptExclusivity.AlwaysShow
+            end
+        end
+    end
+end
+
+local function Autoegg_autoBuyEggs()
+    if Autoegg_autoBuyEnabled then
+        if not Autoegg_firstRun then
+            while Autoegg_timer.Text ~= "00:00:00" do
+                task.wait(0.1)
+            end
+            task.wait(3)
+        else
+            Autoegg_firstRun = false
+        end
+
+        if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then return end
+        player.Character.HumanoidRootPart.CFrame = targetCFrame
+
+        Autoegg_setAlwaysShow()
+
+        local commonEggPrompt = Autoegg_eggLocations:FindFirstChild("Common Egg")
+        if commonEggPrompt then
+            Autoegg_safeFirePrompt(commonEggPrompt:FindFirstChild("ProximityPrompt"))
+            task.wait(0.3)
+            Autoegg_safeFireServer(1)
+        end
+
+        local eggSlot6 = Autoegg_eggLocations:GetChildren()[6]
+        if eggSlot6 then
+            Autoegg_safeFirePrompt(eggSlot6:FindFirstChild("ProximityPrompt"))
+            task.wait(0.3)
+            Autoegg_safeFireServer(2)
+        end
+
+        local eggSlot5 = Autoegg_eggLocations:GetChildren()[5]
+        if eggSlot5 then
+            Autoegg_safeFirePrompt(eggSlot5:FindFirstChild("ProximityPrompt"))
+            task.wait(0.3)
+            Autoegg_safeFireServer(3)
+        end
+
+        player.Character.HumanoidRootPart.CFrame = originalCFrame
+    end
+end
+
+spawn(function()
+    while true do
+        task.wait(0.5)
+        if Autoegg_autoBuyEnabled then
+            Autoegg_autoBuyEggs()
+        end
+    end
+end)
 
 -- Sell Functions
 local function SellAll()
@@ -676,6 +763,8 @@ local function handleNewPrompt(prompt)
     end)
 end
 
+
+
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
@@ -713,7 +802,7 @@ local Window = Rayfield:CreateWindow({
 })
 
 local MainTab = Window:CreateTab("Auto Collect", 4483362458)
-local ESPTab = Window:CreateTab("ESP", 0)
+local BuyTab = Window:CreateTab("Auto Buy", 0)
 
 local Section = MainTab:CreateSection("Auto")
 
@@ -841,13 +930,128 @@ local AutoSellToggle = MainTab:CreateToggle({
    end,
 })
 
+_G.instsell = false
+
 local InsSellToggle = MainTab:CreateToggle({
    Name = "Instant Sell",
    CurrentValue = false,
    Flag = "insell",
-   Callback = SellAll()
+   Callback = function(v)
+        _G.instsell = v
+
+        if _G.instsell then
+            SellAll()
+        end
+   end,
 })
 
+BuyTab:CreateSection("Auto Buy")
 
+ShopTab:CreateDropdown({
+    Name = "Select Seeds",
+    Info = "Choose which seeds to auto buy",
+    Options = seedItems,
+    CurrentOption = {},
+    MultipleOptions = true,
+    Callback = function(Options)
+        selectedSeeds = Options
+    end
+})
+
+BuyTab:CreateDropdown({
+    Name = "Select Gear",
+    Info = "Choose which gear to auto buy",
+    Options = gearItems,
+    CurrentOption = {},
+    MultipleOptions = true,
+    Callback = function(Options)
+        selectedGears = Options
+    end
+})
+
+BuyTab:CreateToggle({
+    Name = "Auto Buy",
+    CurrentValue = false,
+    Callback = function(Value)
+        autoBuyEnabled = Value
+    end
+})
+
+BuyTab:CreateToggle({
+    Name = "Auto Buy Eggs",
+    CurrentValue = false,
+    Callback = function(value)
+        Autoegg_autoBuyEnabled = value
+        if Autoegg_autoBuyEnabled then
+            Autoegg_firstRun = true
+            Autoegg_autoBuyEggs()
+        end
+    end
+})
+-- Auto Buy Logic
+local function getItemPrice(path, item)
+    local container = path:FindFirstChild(item)
+    if not container then return math.huge end
+    local frame = container:FindFirstChild("Frame")
+    if not frame then return math.huge end
+    local buyBtn = frame:FindFirstChild("Sheckles_Buy")
+    if not buyBtn then return math.huge end
+    local inStock = buyBtn:FindFirstChild("In_Stock")
+    if not inStock then return math.huge end
+    local costText = inStock:FindFirstChild("Cost_Text")
+    if not costText or not costText.Text then return math.huge end
+    return parseMoney(costText.Text)
+end
+
+local function tryPurchase(path, remote, item)
+    local itemPrice = getItemPrice(path, item)
+    local playerMoney = getPlayerMoney()
+    if playerMoney > 0 and itemPrice > 0 and playerMoney >= itemPrice then
+        local container = path:FindFirstChild(item)
+        if container and container:FindFirstChild("Frame") then
+            local buyBtn = container.Frame:FindFirstChild("Sheckles_Buy")
+            if buyBtn and buyBtn:FindFirstChild("In_Stock") and buyBtn.In_Stock.Visible then
+                remote:FireServer(item)
+                return true
+            end
+        end
+    end
+    return false
+end
+
+task.spawn(function()
+    while task.wait(0.5) do
+        if autoBuyEnabledE then
+            for _, seed in ipairs(selectedSeeds) do
+                tryPurchase(seedPath, seedRemote, seed)
+            end
+            for _, gear in ipairs(selectedGears) do
+                tryPurchase(gearPath, gearRemote, gear)
+            end
+            for _, item in ipairs(selectedBMItems) do
+                tryPurchase(bmPath, dmRemote, item)
+            end
+        end
+    end
+end)
+
+BuyTab:CreateDropdown({
+    Name = "Blood Moon Items",
+    Description = "Choose which Blood Moon items to auto buy",
+    Options = bmItems,
+    CurrentOption = {},
+    MultipleOptions = true,
+    Flags = "bmi",
+    Callback = function(Options)
+        selectedBMItems = Options
+    end,
+})
+BuyTab:CreateToggle({
+    Name = "Auto Buy BloodMoon Items",
+    CurrentValue = false,
+    Callback = function(Value)
+        autoBuyEnabledE = Value
+    end
+})
 
 Rayfield:LoadConfiguration()
