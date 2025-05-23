@@ -74,7 +74,7 @@ end
 local looptpwait = nil
 local willlooptp = false
 
-looptp = function(obj, posit)
+local function looptp(obj, posit)
     while willlooptp do task.wait()
         obj.CFrame = CFrame.new(posit)
     end
@@ -634,6 +634,48 @@ local function DestoryOthersFarm()
     end
 end
 
+-- col v2
+local spamE = false
+local RANGE = 50
+local promptTracker = {}
+local collectionThread
+local descendantConnection
+
+local function modifyPrompt(prompt, show)
+    pcall(function()
+        prompt.RequiresLineOfSight = not show
+        prompt.Exclusivity = show and Enum.ProximityPromptExclusivity.AlwaysShow or Enum.ProximityPromptExclusivity.One
+    end)
+end
+
+local function isInsideFarm(part)
+    for _, farm in pairs(farms) do
+        if part:IsDescendantOf(farm) then
+            return true
+        end
+    end
+    return false
+end
+
+local function handleNewPrompt(prompt)
+    if not prompt:IsA("ProximityPrompt") then return end
+    if not isInsideFarm(prompt) then return end
+    
+    if not promptTracker[prompt] then
+        promptTracker[prompt] = {
+            originalRequiresLOS = prompt.RequiresLineOfSight,
+            originalExclusivity = prompt.Exclusivity
+        }
+    end
+    
+    modifyPrompt(prompt, spamE)
+    prompt.AncestryChanged:Connect(function(_, parent)
+        if parent == nil then
+            promptTracker[prompt] = nil
+        end
+    end)
+end
+
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
@@ -680,13 +722,15 @@ local CollectToggle = MainTab:CreateToggle({
    CurrentValue = false,
    Flag = "acol",
    Callback = function(state)
-        fastClickEnabled = state
-        if fastClickEnabled then
-            fastClickFarm()
-        elseif fastClickThread then
-            task.cancel(fastClickThread)
-            fastClickThread = nil
-        end
+        pcall(function()
+            fastClickEnabled = state
+            if fastClickEnabled then
+                fastClickFarm()
+            elseif fastClickThread then
+                task.cancel(fastClickThread)
+                fastClickThread = nil
+            end
+        end)
    end,
 })
 
@@ -695,63 +739,65 @@ local CollectnearbyToggle = MainTab:CreateToggle({
    CurrentValue = false,
    Flag = "cnear",
    Callback = function(Value)
-        spamE = Value
-        updateFarmData()
-        
-        for _, farm in pairs(farms) do
-            for _, obj in ipairs(farm:GetDescendants()) do
-                if obj:IsA("ProximityPrompt") then
-                    handleNewPrompt(obj)
+        pcall(function()
+            spamE = Value
+            updateFarmData()
+            
+            for _, farm in pairs(farms) do
+                for _, obj in ipairs(farm:GetDescendants()) do
+                    if obj:IsA("ProximityPrompt") then
+                        handleNewPrompt(obj)
+                    end
                 end
             end
-        end
-        
-        if spamE then
-            collectionThread = task.spawn(function()
-                while spamE and task.wait(0.1) do
-                    if not isInventoryFull() then
-                        local plr = game.Players.LocalPlayer
-                        local char = plr and plr.Character
-                        local root = char and char:FindFirstChild("HumanoidRootPart")
-                        
-                        if root then
-                            for prompt, _ in pairs(promptTracker) do
-                                if prompt:IsA("ProximityPrompt") and prompt.Enabled and prompt.KeyboardKeyCode == Enum.KeyCode.E then
-                                    local targetPos
-                                    local parent = prompt.Parent
-                                    
-                                    if parent:IsA("BasePart") then
-                                        targetPos = parent.Position
-                                    elseif parent:IsA("Model") and parent:FindFirstChild("HumanoidRootPart") then
-                                        targetPos = parent.HumanoidRootPart.Position
-                                    end
-                                    
-                                    if targetPos and (root.Position - targetPos).Magnitude <= RANGE then
-                                        pcall(function()
-                                            fireproximityprompt(prompt, 1, true)
-                                        end)
+            
+            if spamE then
+                collectionThread = task.spawn(function()
+                    while spamE and task.wait(0.1) do
+                        if not isInventoryFull() then
+                            local plr = game.Players.LocalPlayer
+                            local char = plr and plr.Character
+                            local root = char and char:FindFirstChild("HumanoidRootPart")
+                            
+                            if root then
+                                for prompt, _ in pairs(promptTracker) do
+                                    if prompt:IsA("ProximityPrompt") and prompt.Enabled and prompt.KeyboardKeyCode == Enum.KeyCode.E then
+                                        local targetPos
+                                        local parent = prompt.Parent
+                                        
+                                        if parent:IsA("BasePart") then
+                                            targetPos = parent.Position
+                                        elseif parent:IsA("Model") and parent:FindFirstChild("HumanoidRootPart") then
+                                            targetPos = parent.HumanoidRootPart.Position
+                                        end
+                                        
+                                        if targetPos and (root.Position - targetPos).Magnitude <= RANGE then
+                                            pcall(function()
+                                                fireproximityprompt(prompt, 1, true)
+                                            end)
+                                        end
                                     end
                                 end
                             end
                         end
                     end
+                end)
+            else
+                for prompt, data in pairs(promptTracker) do
+                    if prompt:IsA("ProximityPrompt") then
+                        pcall(function()
+                            prompt.RequiresLineOfSight = data.originalRequiresLOS
+                            prompt.Exclusivity = data.originalExclusivity
+                        end)
+                    end
                 end
-            end)
-        else
-            for prompt, data in pairs(promptTracker) do
-                if prompt:IsA("ProximityPrompt") then
-                    pcall(function()
-                        prompt.RequiresLineOfSight = data.originalRequiresLOS
-                        prompt.Exclusivity = data.originalExclusivity
-                    end)
+                
+                if collectionThread then
+                    task.cancel(collectionThread)
+                    collectionThread = nil
                 end
             end
-            
-            if collectionThread then
-                task.cancel(collectionThread)
-                collectionThread = nil
-            end
-        end
+        end)
    end,
 })
 
@@ -778,18 +824,20 @@ local AutoSellToggle = MainTab:CreateToggle({
    CurrentValue = false,
    Flag = "asell",
    Callback = function(Value)
-        autoSellEnabled = Value
-        if autoSellEnabled then
-            autoSellThread = task.spawn(function()
-                while autoSellEnabled and task.wait(1) do
-                    if isInventoryFull() then
-                        sellItems()
+        pcall(function()
+            autoSellEnabled = Value
+            if autoSellEnabled then
+                autoSellThread = task.spawn(function()
+                    while autoSellEnabled and task.wait(1) do
+                        if isInventoryFull() then
+                            sellItems()
+                        end
                     end
-                end
-            end)
-        elseif autoSellThread then
-            task.cancel(autoSellThread)
-        end
+                end)
+            elseif autoSellThread then
+                task.cancel(autoSellThread)
+            end
+        end)
    end,
 })
 
