@@ -46,7 +46,7 @@ gearicon.Visible = true
 gearicon.ImageColor3 = Color3.fromRGB(255, 255, 255)
 
 -- Auto Farm Functions
-local autoFarmEnabled = true
+local autoFarmEnabled = false
 local farmThread
 
 local function updateFarmData()
@@ -284,7 +284,7 @@ local function Harvest()
                     if not HarvestEnabled then break end
                     if part:IsA("BasePart") and CanHarvest(part) then
                         local prompt = part.ProximityPrompt
-                        local pos = part.Position + Vector3.new(0, 3, 0)
+                        local pos = part.Position + Vector3.new(0, -3, 0)
                         if lp.Character and lp.Character.PrimaryPart then
                             lp.Character:SetPrimaryPartCFrame(CFrame.new(pos))
                             task.wait(0.1)
@@ -634,4 +634,170 @@ local function DestoryOthersFarm()
     end
 end
 
-instantFarm()
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+local Window = Rayfield:CreateWindow({
+   Name = "Moonlight Hub | Grow a garden",
+   Icon = 0, 
+   LoadingTitle = "Moonlight Hub",
+   LoadingSubtitle = "Grow a garden",
+   Theme = "Default", 
+
+   DisableRayfieldPrompts = false,
+   DisableBuildWarnings = false,
+
+   ConfigurationSaving = {
+      Enabled = true,
+      FolderName = "mlh",
+      FileName = "gag"
+   },
+
+   Discord = {
+      Enabled = false,
+      Invite = "noinvitelink", 
+      RememberJoins = true
+    },
+
+   KeySystem = false, 
+   KeySettings = {
+      Title = "Untitled",
+      Subtitle = "Key System",
+      Note = "No method of obtaining the key is provided", 
+      FileName = "Key", 
+      SaveKey = true,
+      GrabKeyFromSite = false, 
+      Key = {"Hello"} 
+   }
+})
+
+local MainTab = Window:CreateTab("Auto Collect", 4483362458)
+
+
+local Section = MainTab:CreateSection("Auto")
+
+local CollectToggle = MainTab:CreateToggle({
+   Name = "Auto Collect",
+   CurrentValue = false,
+   Flag = "acol",
+   Callback = function(state)
+        fastClickEnabled = state
+        if fastClickEnabled then
+            fastClickFarm()
+        elseif fastClickThread then
+            task.cancel(fastClickThread)
+            fastClickThread = nil
+        end
+   end,
+})
+
+local CollectnearbyToggle = MainTab:CreateToggle({
+   Name = "Auto Collect Nearby",
+   CurrentValue = false,
+   Flag = "cnear",
+   Callback = function(Value)
+        spamE = Value
+        updateFarmData()
+        
+        for _, farm in pairs(farms) do
+            for _, obj in ipairs(farm:GetDescendants()) do
+                if obj:IsA("ProximityPrompt") then
+                    handleNewPrompt(obj)
+                end
+            end
+        end
+        
+        if spamE then
+            collectionThread = task.spawn(function()
+                while spamE and task.wait(0.1) do
+                    if not isInventoryFull() then
+                        local plr = game.Players.LocalPlayer
+                        local char = plr and plr.Character
+                        local root = char and char:FindFirstChild("HumanoidRootPart")
+                        
+                        if root then
+                            for prompt, _ in pairs(promptTracker) do
+                                if prompt:IsA("ProximityPrompt") and prompt.Enabled and prompt.KeyboardKeyCode == Enum.KeyCode.E then
+                                    local targetPos
+                                    local parent = prompt.Parent
+                                    
+                                    if parent:IsA("BasePart") then
+                                        targetPos = parent.Position
+                                    elseif parent:IsA("Model") and parent:FindFirstChild("HumanoidRootPart") then
+                                        targetPos = parent.HumanoidRootPart.Position
+                                    end
+                                    
+                                    if targetPos and (root.Position - targetPos).Magnitude <= RANGE then
+                                        pcall(function()
+                                            fireproximityprompt(prompt, 1, true)
+                                        end)
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+            end)
+        else
+            for prompt, data in pairs(promptTracker) do
+                if prompt:IsA("ProximityPrompt") then
+                    pcall(function()
+                        prompt.RequiresLineOfSight = data.originalRequiresLOS
+                        prompt.Exclusivity = data.originalExclusivity
+                    end)
+                end
+            end
+            
+            if collectionThread then
+                task.cancel(collectionThread)
+                collectionThread = nil
+            end
+        end
+   end,
+})
+
+descendantConnection = workspace.DescendantAdded:Connect(function(obj)
+    if obj:IsA("ProximityPrompt") and isInsideFarm(obj) then
+        handleNewPrompt(obj)
+    end
+end)
+
+for _, farm in pairs(farms) do
+    for _, obj in ipairs(farm:GetDescendants()) do
+        if obj:IsA("ProximityPrompt") then
+            handleNewPrompt(obj)
+        end
+    end
+end
+
+
+
+local Section = MainTab:CreateSection("Sell")
+
+local AutoSellToggle = MainTab:CreateToggle({
+   Name = "Auto Sell -When Inventory is full",
+   CurrentValue = false,
+   Flag = "asell",
+   Callback = function(Value)
+        autoSellEnabled = Value
+        if autoSellEnabled then
+            autoSellThread = task.spawn(function()
+                while autoSellEnabled and task.wait(1) do
+                    if isInventoryFull() then
+                        sellItems()
+                    end
+                end
+            end)
+        elseif autoSellThread then
+            task.cancel(autoSellThread)
+        end
+   end,
+})
+
+local InsSellToggle = MainTab:CreateToggle({
+   Name = "Instant Sell",
+   CurrentValue = false,
+   Flag = "insell",
+   Callback = SellAll()
+})
+
+Rayfield:LoadConfiguration()
