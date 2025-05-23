@@ -713,7 +713,7 @@ local Window = Rayfield:CreateWindow({
 })
 
 local MainTab = Window:CreateTab("Auto Collect", 4483362458)
-
+local ESPTab = Window:CreateTab("ESP", 0)
 
 local Section = MainTab:CreateSection("Auto")
 
@@ -847,5 +847,7 @@ local InsSellToggle = MainTab:CreateToggle({
    Flag = "insell",
    Callback = SellAll()
 })
+
+
 
 Rayfield:LoadConfiguration()
