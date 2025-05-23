@@ -464,7 +464,7 @@ local function SellAll()
             if data and data:FindFirstChild("Owner") and data.Owner.Value == lp.Name then
                 local spawn = farm:FindFirstChild("Spawn_Point")
                 if spawn then
-                    hrp.CFrame = spawn.CFrame + Vector3.new(0, 3, 0)
+                    hrp.CFrame = CFrame.new(oldCFrame)
                     break
                 end
             end
@@ -937,24 +937,28 @@ local InsSellToggle = MainTab:CreateToggle({
    CurrentValue = false,
    Flag = "insell",
    Callback = function(v)
-        _G.instsell = v
+        pcall(function()
+            _G.instsell = v
 
-        if _G.instsell then
-            SellAll()
-        end
+            while _G.instsell do task.wait(1)
+                SellAll()
+            end
+        end)
    end,
 })
 
 BuyTab:CreateSection("Auto Buy")
 
-ShopTab:CreateDropdown({
+BuyTab:CreateDropdown({
     Name = "Select Seeds",
-    Info = "Choose which seeds to auto buy",
     Options = seedItems,
     CurrentOption = {},
     MultipleOptions = true,
+    Flag = "sseeds",
     Callback = function(Options)
-        selectedSeeds = Options
+        pcall(function()
+            selectedSeeds = Options
+        end)
     end
 })
 
@@ -965,7 +969,9 @@ BuyTab:CreateDropdown({
     CurrentOption = {},
     MultipleOptions = true,
     Callback = function(Options)
-        selectedGears = Options
+        pcall(function()
+            selectedGears = Options
+        end)
     end
 })
 
@@ -973,7 +979,9 @@ BuyTab:CreateToggle({
     Name = "Auto Buy",
     CurrentValue = false,
     Callback = function(Value)
-        autoBuyEnabled = Value
+        pcall(function()
+            autoBuyEnabled = Value
+        end)
     end
 })
 
@@ -981,11 +989,13 @@ BuyTab:CreateToggle({
     Name = "Auto Buy Eggs",
     CurrentValue = false,
     Callback = function(value)
-        Autoegg_autoBuyEnabled = value
-        if Autoegg_autoBuyEnabled then
-            Autoegg_firstRun = true
-            Autoegg_autoBuyEggs()
-        end
+        pcall(function()
+            Autoegg_autoBuyEnabled = value
+            if Autoegg_autoBuyEnabled then
+                Autoegg_firstRun = true
+                Autoegg_autoBuyEggs()
+            end
+        end)
     end
 })
 -- Auto Buy Logic
@@ -1019,20 +1029,22 @@ local function tryPurchase(path, remote, item)
     return false
 end
 
-task.spawn(function()
-    while task.wait(0.5) do
-        if autoBuyEnabledE then
-            for _, seed in ipairs(selectedSeeds) do
-                tryPurchase(seedPath, seedRemote, seed)
-            end
-            for _, gear in ipairs(selectedGears) do
-                tryPurchase(gearPath, gearRemote, gear)
-            end
-            for _, item in ipairs(selectedBMItems) do
-                tryPurchase(bmPath, dmRemote, item)
+pcall(function()
+    task.spawn(function()
+        while task.wait(0.5) do
+            if autoBuyEnabledE then
+                for _, seed in ipairs(selectedSeeds) do
+                    tryPurchase(seedPath, seedRemote, seed)
+                end
+                for _, gear in ipairs(selectedGears) do
+                    tryPurchase(gearPath, gearRemote, gear)
+                end
+                for _, item in ipairs(selectedBMItems) do
+                    tryPurchase(bmPath, dmRemote, item)
+                end
             end
         end
-    end
+    end)
 end)
 
 BuyTab:CreateDropdown({
@@ -1041,16 +1053,21 @@ BuyTab:CreateDropdown({
     Options = bmItems,
     CurrentOption = {},
     MultipleOptions = true,
-    Flags = "bmi",
+    Flag = "bmi",
     Callback = function(Options)
-        selectedBMItems = Options
+        pcall(function()
+            selectedBMItems = Options
+        end)
     end,
 })
 BuyTab:CreateToggle({
     Name = "Auto Buy BloodMoon Items",
     CurrentValue = false,
+    Flag = "abmi",
     Callback = function(Value)
-        autoBuyEnabledE = Value
+        pcall(function()
+            autoBuyEnabledE = Value
+        end)
     end
 })
 
