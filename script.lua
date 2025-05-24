@@ -1058,7 +1058,6 @@ local function DestoryOthersFarm()
     end
 end
 
-pcall(function()
 local Env = loadstring(game:HttpGet("https://raw.githubusercontent.com/MerrySubs4t/96soul/refs/heads/main/Utilities/NongkhawKawaii-UI.luau", true))()
 
 local Banner = {
@@ -1236,11 +1235,6 @@ ACSection:CreateToggle({
 
 ACSection:Line()
 
-ACSection:Paragarp({
-    Title = "Auto Favorite",
-    Desc = "Please Select Mutations First"
-})
-
 ACSection:Dropdown({
     Title = "Select Mutation",
     Multi = true,
@@ -1283,11 +1277,3 @@ local function Unfavall()
         end
     end
 end
-
-end)
---[[ACSection:CreateButton({
-    Title = "Un-Favorite ALl",
-    Desc = "(Might Un-Favorite Your Important Fruits!)",
-    Callback = Unfavall
-})]]
-
