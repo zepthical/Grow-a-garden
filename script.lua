@@ -71,28 +71,6 @@ local function updateFarmData()
     end
 end
 
-local looptpwait = nil
-local willlooptp = false
-
-local function looptp(obj, posit)
-    while willlooptp do task.wait()
-        obj.CFrame = CFrame.new(posit)
-    end
-
-    if task.wait(looptpwait) then
-        willlooptp = false
-    end
-end
-
-local function glitchTeleport(pos)
-    if not lp.Character then return end
-    local root = lp.Character:FindFirstChild("HumanoidRootPart")
-    if not root then return end
-    willlooptp = true
-    task.wait(0.1)
-    looptp(root, pos + Vector3.new(0, -2, 0))
-end
-
 local function parseMoney(moneyStr)
     if not moneyStr then return 0 end
     moneyStr = tostring(moneyStr):gsub("Ã‚Â¢", ""):gsub(",", ""):gsub(" ", ""):gsub("%$", "")
@@ -115,6 +93,61 @@ local function isInventoryFull()
     return #lp.Backpack:GetChildren() >= 200
 end
 
+-- Auto Farm Functions
+local autoFarmEnabled = false
+local farmThread
+
+local function updateFarmData()
+    farms = {}
+    plants = {}
+    for _, farm in pairs(workspace:FindFirstChild("Farm"):GetChildren()) do
+        local data = farm:FindFirstChild("Important") and farm.Important:FindFirstChild("Data")
+        if data and data:FindFirstChild("Owner") and data.Owner.Value == lp.Name then
+            table.insert(farms, farm)
+            local plantsFolder = farm.Important:FindFirstChild("Plants_Physical")
+            if plantsFolder then
+                for _, plantModel in pairs(plantsFolder:GetChildren()) do
+                    for _, part in pairs(plantModel:GetDescendants()) do
+                        if part:IsA("BasePart") and part:FindFirstChildOfClass("ProximityPrompt") then
+                            table.insert(plants, part)
+                            break
+                        end
+                    end
+                end
+            end
+        end
+    end
+end
+
+local function getPlayerMoney()
+    return parseMoney((shecklesStat and shecklesStat.Value) or 0)
+end
+
+local looptpwait = nil
+local willlooptp = false
+
+local function looptp(obj, posit)
+    while willlooptp do task.wait()
+        obj.CFrame = CFrame.new(posit)
+    end
+
+    if task.wait(looptpwait) then
+        willlooptp = false
+    end
+end
+
+local function glitchTeleport(pos)
+    if not lp.Character then return end
+    local root = lp.Character:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+    willlooptp = true
+    task.wait(0.1)
+    looptp(root, pos + Vector3.new(0, -2, 0))
+end
+
+local function isInventoryFull()
+    return #lp.Backpack:GetChildren() >= 200
+end
 
 local function instantFarm()
     if farmThread then task.cancel(farmThread) end
@@ -155,6 +188,7 @@ local function instantFarm()
     end)
 end
 
+-- Auto Collect Functions
 local fastClickEnabled = false
 local fastClickThread
 local CLICK_DELAY = 0.00000001
@@ -211,6 +245,7 @@ local function fastClickFarm()
     end)
 end
 
+-- Auto Sell Functions
 local autoSellEnabled = false
 local autoSellThread
 
@@ -230,7 +265,7 @@ local function sellItems()
     
     for _ = 1, 5 do
         pcall(function()
-            game.ReplicatedStorage.GameEvents.Sell_Inventory:FireServer()
+            ReplicatedStorage.GameEvents.Sell_Inventory:FireServer()
         end)
         task.wait(0.15)
     end
@@ -259,9 +294,7 @@ end
 
 local function CanHarvest(part)
     local prompt = part:FindFirstChild("ProximityPrompt")
-    if prompt and prompt.Enabled == true then
-        return prompt and prompt.Enabled
-    end
+    return prompt and prompt.Enabled
 end
 
 local function Harvest()
@@ -284,7 +317,7 @@ local function Harvest()
                     if not HarvestEnabled then break end
                     if part:IsA("BasePart") and CanHarvest(part) then
                         local prompt = part.ProximityPrompt
-                        local pos = part.Position + Vector3.new(0, -3, 0)
+                        local pos = part.Position + Vector3.new(0, 3, 0)
                         if lp.Character and lp.Character.PrimaryPart then
                             lp.Character:SetPrimaryPartCFrame(CFrame.new(pos))
                             task.wait(0.1)
@@ -318,6 +351,117 @@ local function ToggleHarvest(state)
             end
         end)
     end
+end
+
+-- Movement Functions
+local flyEnabled = false
+local flySpeed = 48
+local bodyVelocity, bodyGyro
+local flightConnection
+
+local function Fly(state)
+    flyEnabled = state
+    if flyEnabled then
+        local character = lp.Character
+        if not character or not character:FindFirstChild("HumanoidRootPart") then return end
+        
+        local humanoid = character:FindFirstChildOfClass("Humanoid")
+        if not humanoid then return end
+        
+        bodyGyro = Instance.new("BodyGyro")
+        bodyVelocity = Instance.new("BodyVelocity")
+        bodyGyro.P = 9000
+        bodyGyro.maxTorque = Vector3.new(8999999488, 8999999488, 8999999488)
+        bodyGyro.cframe = character.HumanoidRootPart.CFrame
+        bodyGyro.Parent = character.HumanoidRootPart
+        
+        bodyVelocity.velocity = Vector3.new(0, 0, 0)
+        bodyVelocity.maxForce = Vector3.new(8999999488, 8999999488, 8999999488)
+        bodyVelocity.Parent = character.HumanoidRootPart
+        humanoid.PlatformStand = true
+        
+        flightConnection = RunService.Heartbeat:Connect(function()
+            if not flyEnabled or not character:FindFirstChild("HumanoidRootPart") then
+                if flightConnection then flightConnection:Disconnect() end
+                return
+            end
+            
+            local cam = workspace.CurrentCamera.CFrame
+            local moveVec = Vector3.new()
+            
+            if UserInputService:IsKeyDown(Enum.KeyCode.W) then
+                moveVec = moveVec + cam.LookVector
+            end
+            if UserInputService:IsKeyDown(Enum.KeyCode.S) then
+                moveVec = moveVec - cam.LookVector
+            end
+            if UserInputService:IsKeyDown(Enum.KeyCode.A) then
+                moveVec = moveVec - cam.RightVector
+            end
+            if UserInputService:IsKeyDown(Enum.KeyCode.D) then
+                moveVec = moveVec + cam.RightVector
+            end
+            
+            if moveVec.Magnitude > 0 then
+                moveVec = moveVec.Unit * flySpeed
+            end
+            if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
+                moveVec = moveVec + Vector3.new(0, flySpeed, 0)
+            end
+            if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then
+                moveVec = moveVec + Vector3.new(0, -flySpeed, 0)
+            end
+            
+            bodyVelocity.velocity = moveVec
+            bodyGyro.cframe = cam
+        end)
+    else
+        if bodyVelocity then bodyVelocity:Destroy() end
+        if bodyGyro then bodyGyro:Destroy() end
+        
+        local character = lp.Character
+        if character then
+            local humanoid = character:FindFirstChildOfClass("Humanoid")
+            if humanoid then
+                humanoid.PlatformStand = false
+            end
+        end
+        
+        if flightConnection then
+            flightConnection:Disconnect()
+            flightConnection = nil
+        end
+    end
+end
+
+-- NoClip Functions
+local noclip = false
+
+RunService.Stepped:Connect(function()
+    if noclip then
+        for _, part in ipairs(char:GetDescendants()) do
+            if part:IsA("BasePart") and part.CanCollide == true then
+                part.CanCollide = false
+            end
+        end
+    end
+end)
+
+local function ToggleNoclip(state)
+    noclip = state
+end
+
+-- Infinite Jump Functions
+local infJump = false
+
+UserInputService.JumpRequest:Connect(function()
+    if infJump and char and char:FindFirstChildOfClass("Humanoid") then
+        char:FindFirstChildOfClass("Humanoid"):ChangeState(Enum.HumanoidStateType.Jumping)
+    end
+end)
+
+local function ToggleInfJump(state)
+    infJump = state
 end
 
 -- Shop Functions
@@ -356,11 +500,6 @@ end
 
 local function EggShop3()
     fireproximityprompt(workspace.NPCS["Pet Stand"].EggLocations:GetChildren()[5].ProximityPrompt)
-end
-
-local function OpenBloodShop()
-    local Bs = lp.PlayerGui.EventShop_UI
-    Bs.Enabled = not Bs.Enabled
 end
 
 -- Auto Buy Egg
@@ -464,7 +603,7 @@ local function SellAll()
             if data and data:FindFirstChild("Owner") and data.Owner.Value == lp.Name then
                 local spawn = farm:FindFirstChild("Spawn_Point")
                 if spawn then
-                    hrp.CFrame = CFrame.new(oldCFrame)
+                    hrp.CFrame = spawn.CFrame + Vector3.new(0, 3, 0)
                     break
                 end
             end
@@ -524,6 +663,109 @@ local function AutoGiveFruitMoon(State)
     end)
 end
 
+local function OpenBloodShop()
+    local Bs = lp.PlayerGui.EventShop_UI
+    Bs.Enabled = not Bs.Enabled
+end
+
+-- Dupe Functions
+local dupeLLPEnabled = false
+local dupeLLPThread
+
+local function DupeLLP()
+    if dupeLLPThread then task.cancel(dupeLLPThread) end
+    dupeLLPThread = task.spawn(function()
+        while dupeLLPEnabled do
+            local event = ReplicatedStorage.GameEvents.EasterShopService
+            for i = 1, 5 do
+                event:FireServer("PurchaseSeed", i)
+                task.wait(0.1)
+            end
+            task.wait(20)
+        end
+    end)
+end
+
+local BananaDupe
+local BAnanaDupeE = false
+
+local function DupeBanana()
+    if BananaDupe then task.cancel(BananaDupe) end
+    BananaDupe = task.spawn(function()
+        while BAnanaDupeE do
+            ReplicatedStorage.GameEvents.BuySeedStock:FireServer("Banana")
+            task.wait(20)
+        end
+    end)
+end
+
+local CrimsonDupe
+local CRimsonDupeE = false
+
+local function DupeCrimson()
+    if CrimsonDupe then task.cancel(CrimsomDupe) end
+    CrimsonDupe = task.spawn(function()
+        while CRimsonDupeE do
+            ReplicatedStorage.GameEvents.BuySeedStock:FireServer("Crimson Vine")
+            task.wait(20)
+        end
+    end)
+end
+
+-- Auto Collect V2 Functions
+local spamE = false
+local RANGE = 50
+local promptTracker = {}
+local collectionThread
+local descendantConnection
+
+local function modifyPrompt(prompt, show)
+    pcall(function()
+        prompt.RequiresLineOfSight = not show
+        prompt.Exclusivity = show and Enum.ProximityPromptExclusivity.AlwaysShow or Enum.ProximityPromptExclusivity.One
+    end)
+end
+
+local function isInsideFarm(part)
+    for _, farm in pairs(farms) do
+        if part:IsDescendantOf(farm) then
+            return true
+        end
+    end
+    return false
+end
+
+local function handleNewPrompt(prompt)
+    if not prompt:IsA("ProximityPrompt") then return end
+    if not isInsideFarm(prompt) then return end
+    
+    if not promptTracker[prompt] then
+        promptTracker[prompt] = {
+            originalRequiresLOS = prompt.RequiresLineOfSight,
+            originalExclusivity = prompt.Exclusivity
+        }
+    end
+    
+    modifyPrompt(prompt, spamE)
+    prompt.AncestryChanged:Connect(function(_, parent)
+        if parent == nil then
+            promptTracker[prompt] = nil
+        end
+    end)
+end
+
+-- One Click Remove Functions
+local enabled = false
+
+local function OneClickRemove(state)
+    enabled = state
+    local confirmFrame = Players.LocalPlayer.PlayerGui:FindFirstChild("ShovelPrompt")
+    if confirmFrame and confirmFrame:FindFirstChild("ConfirmFrame") then
+        confirmFrame.ConfirmFrame.Visible = not state
+    end
+end
+
+-- Anti-AFK Function
 local function AntiAfk(state)
     if state then
         if not _G.AntiAfkConnection then
@@ -538,6 +780,7 @@ local function AntiAfk(state)
     end
 end
 
+-- Destroy Sign Function
 local function DestroySign()
     for _, farm in pairs(workspace.Farm:GetChildren()) do
         local sign = farm:FindFirstChild("Sign")
@@ -630,6 +873,100 @@ local function toggleAutoClaim(newState)
     end
 end
 
+-- Auto Open Crate Functions
+local autoSkipEnabled = false
+
+local function toggleAutoSkip()
+    autoSkipEnabled = not autoSkipEnabled
+    if autoSkipEnabled then
+        task.spawn(function()
+            local character = lp.Character
+            local backpack = lp:FindFirstChild("Backpack")
+            local seedTool
+            if backpack then
+                for _, tool in ipairs(backpack:GetChildren()) do
+                    if tool:IsA("Tool") and tool.Name:find("Basic Seed Pack") then
+                        seedTool = tool
+                        break
+                    end
+                end
+            end
+            if seedTool and character then
+                seedTool.Parent = character
+            end
+            
+            while autoSkipEnabled do
+                local PlayerGui = lp:FindFirstChild("PlayerGui")
+                local RollCrate_UI = PlayerGui and PlayerGui:FindFirstChild("RollCrate_UI")
+                local character = lp.Character
+                local equippedTool = character and character:FindFirstChildOfClass("Tool")
+                local holdingSeed = equippedTool and equippedTool.Name:find("Basic Seed Pack")
+                
+                if RollCrate_UI then
+                    if RollCrate_UI.Enabled then
+                        local Frame = RollCrate_UI:FindFirstChild("Frame")
+                        local Button = Frame and Frame:FindFirstChild("Skip")
+                        if Button and Button:IsA("ImageButton") and Button.Visible then
+                            GuiService.SelectedObject = Button
+                            VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Return, false, game)
+                            VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Return, false, game)
+                        end
+                    elseif holdingSeed then
+                        VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 1)
+                        VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 1)
+                    end
+                end
+                task.wait(0.1)
+            end
+        end)
+    end
+end
+
+-- Server Hop Function
+local function ServerHop()
+    local TeleportService = game:GetService("TeleportService")
+    local HttpService = game:GetService("HttpService")
+    local PlaceId = game.PlaceId
+    local currentJobId = game.JobId
+    local servers = {}
+    local cursor = nil
+
+    -- Fetch servers
+    local function GetServers(cursor)
+        local url = "https://games.roblox.com/v1/games/" .. PlaceId .. "/servers/Public?sortOrder=Asc&limit=100"
+        if cursor then
+            url = url .. "&cursor=" .. cursor
+        end
+        return HttpService:JSONDecode(game:HttpGet(url))
+    end
+
+    -- Collect servers with fewer players than max
+    repeat
+        local data = GetServers(cursor)
+        for _, server in ipairs(data.data) do
+            if server.playing < server.maxPlayers and server.id ~= currentJobId then
+                table.insert(servers, { id = server.id, playing = server.playing })
+            end
+        end
+        cursor = data.nextPageCursor
+    until not cursor or #servers > 0
+
+    -- Notify if no servers are found
+    if #servers == 0 then
+        warn("No available servers found.")
+        return
+    end
+
+    -- Sort servers by player count (ascending) to target older servers
+    table.sort(servers, function(a, b)
+        return a.playing < b.playing
+    end)
+
+    -- Teleport to the server with the lowest player count
+    local targetServer = servers[1].id
+    TeleportService:TeleportToPlaceInstance(PlaceId, targetServer, game.Players.LocalPlayer)
+end
+
 -- Auto Plant Functions
 local plantRemote = ReplicatedStorage:WaitForChild("GameEvents"):WaitForChild("Plant_RE")
 local AutoPlanting = false
@@ -703,7 +1040,7 @@ local function startAutoPlanting()
     end)
 end
 
--- Destroy Others's Farm Function
+-- Destroy Others Farm Function
 local function DestoryOthersFarm()
     local farms = workspace:FindFirstChild("Farm")
     if not farms then return end
@@ -721,173 +1058,115 @@ local function DestoryOthersFarm()
     end
 end
 
--- col v2
-local spamE = false
-local RANGE = 50
-local promptTracker = {}
-local collectionThread
-local descendantConnection
+local Env = loadstring(game:HttpGet("https://raw.githubusercontent.com/MerrySubs4t/96soul/refs/heads/main/Utilities/NongkhawKawaii-UI.luau", true))()
 
-local function modifyPrompt(prompt, show)
-    pcall(function()
-        prompt.RequiresLineOfSight = not show
-        prompt.Exclusivity = show and Enum.ProximityPromptExclusivity.AlwaysShow or Enum.ProximityPromptExclusivity.One
-    end)
-end
+local Banner = {
+	['Genral'] = 101849161408766,
+	['Auto'] = 110162136250435,
+	['Setting'] = 72210587662292,
+	['Misc'] = 84034775913393,
+	['Items'] = 98574803492996,
+	['Shop'] = 74630923244478,
+	['Teleport'] = 137847566773112,
+	['Visual'] = 123257335719276,
+	['Combat'] = 112935442242481,
+	['Update'] = 86844430363710,
+}
 
-local function isInsideFarm(part)
-    for _, farm in pairs(farms) do
-        if part:IsDescendantOf(farm) then
-            return true
-        end
-    end
-    return false
-end
-
-local function handleNewPrompt(prompt)
-    if not prompt:IsA("ProximityPrompt") then return end
-    if not isInsideFarm(prompt) then return end
-    
-    if not promptTracker[prompt] then
-        promptTracker[prompt] = {
-            originalRequiresLOS = prompt.RequiresLineOfSight,
-            originalExclusivity = prompt.Exclusivity
-        }
-    end
-    
-    modifyPrompt(prompt, spamE)
-    prompt.AncestryChanged:Connect(function(_, parent)
-        if parent == nil then
-            promptTracker[prompt] = nil
-        end
-    end)
-end
-
-
-
-local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-
-local Window = Rayfield:CreateWindow({
-   Name = "Moonlight Hub | Grow a garden",
-   Icon = 0, 
-   LoadingTitle = "Moonlight Hub",
-   LoadingSubtitle = "Grow a garden",
-   Theme = "Default", 
-
-   DisableRayfieldPrompts = false,
-   DisableBuildWarnings = false,
-
-   ConfigurationSaving = {
-      Enabled = true,
-      FolderName = "mlh",
-      FileName = "gag"
-   },
-
-   Discord = {
-      Enabled = false,
-      Invite = "noinvitelink", 
-      RememberJoins = true
-    },
-
-   KeySystem = false, 
-   KeySettings = {
-      Title = "Untitled",
-      Subtitle = "Key System",
-      Note = "No method of obtaining the key is provided", 
-      FileName = "Key", 
-      SaveKey = true,
-      GrabKeyFromSite = false, 
-      Key = {"Hello"} 
-   }
+local Window = Env:Window({
+	Title = "Moonlight Hub",
+	Desc = "- Grow a Garden"
 })
 
-local MainTab = Window:CreateTab("Auto Collect", 4483362458)
-local BuyTab = Window:CreateTab("Auto Buy", 0)
-
-local Section = MainTab:CreateSection("Auto")
-
-local CollectToggle = MainTab:CreateToggle({
-   Name = "Auto Collect",
-   CurrentValue = false,
-   Flag = "acol",
-   Callback = function(state)
-        pcall(function()
-            fastClickEnabled = state
-            if fastClickEnabled then
-                fastClickFarm()
-            elseif fastClickThread then
-                task.cancel(fastClickThread)
-                fastClickThread = nil
-            end
-        end)
-   end,
+local AutoTab = Window:Add({
+	Title = "Auto",
+	Desc = "Automatically",
+	Banner = Banner.Auto
 })
 
-local CollectnearbyToggle = MainTab:CreateToggle({
-   Name = "Auto Collect Nearby",
-   CurrentValue = false,
-   Flag = "cnear",
-   Callback = function(Value)
-        pcall(function()
-            spamE = Value
-            updateFarmData()
-            
-            for _, farm in pairs(farms) do
-                for _, obj in ipairs(farm:GetDescendants()) do
-                    if obj:IsA("ProximityPrompt") then
-                        handleNewPrompt(obj)
-                    end
+local ACSection = AutoTab:Section({
+	Title = "Auto Collect",
+	Side = 'l'
+})
+
+ACSection:CreateToggle({
+    Title = "Auto Collect",
+    Desc = "Automatically Collect Fruits",
+    Value = false,
+    Callback = function(v)
+        fastClickEnabled = v
+        if fastClickEnabled then
+            fastClickFarm()
+        elseif fastClickThread then
+            task.cancel(fastClickThread)
+            fastClickThread = nil
+        end
+    end,
+})
+
+ACSection:CreateToggle({
+    Title = "Auto Collect Nearby",
+    Desc = "Automatically Collect Nearby Fruits",
+    Value = false,
+    Callback = function(v)
+        spamE = v
+        updateFarmData()
+        
+        for _, farm in pairs(farms) do
+            for _, obj in ipairs(farm:GetDescendants()) do
+                if obj:IsA("ProximityPrompt") then
+                    handleNewPrompt(obj)
                 end
             end
-            
-            if spamE then
-                collectionThread = task.spawn(function()
-                    while spamE and task.wait(0.1) do
-                        if not isInventoryFull() then
-                            local plr = game.Players.LocalPlayer
-                            local char = plr and plr.Character
-                            local root = char and char:FindFirstChild("HumanoidRootPart")
-                            
-                            if root then
-                                for prompt, _ in pairs(promptTracker) do
-                                    if prompt:IsA("ProximityPrompt") and prompt.Enabled and prompt.KeyboardKeyCode == Enum.KeyCode.E then
-                                        local targetPos
-                                        local parent = prompt.Parent
-                                        
-                                        if parent:IsA("BasePart") then
-                                            targetPos = parent.Position
-                                        elseif parent:IsA("Model") and parent:FindFirstChild("HumanoidRootPart") then
-                                            targetPos = parent.HumanoidRootPart.Position
-                                        end
-                                        
-                                        if targetPos and (root.Position - targetPos).Magnitude <= RANGE then
-                                            pcall(function()
-                                                fireproximityprompt(prompt, 1, true)
-                                            end)
-                                        end
+        end
+        
+        if spamE then
+            collectionThread = task.spawn(function()
+                while spamE and task.wait(0.1) do
+                    if not isInventoryFull() then
+                        local plr = game.Players.LocalPlayer
+                        local char = plr and plr.Character
+                        local root = char and char:FindFirstChild("HumanoidRootPart")
+                        
+                        if root then
+                            for prompt, _ in pairs(promptTracker) do
+                                if prompt:IsA("ProximityPrompt") and prompt.Enabled and prompt.KeyboardKeyCode == Enum.KeyCode.E then
+                                    local targetPos
+                                    local parent = prompt.Parent
+                                    
+                                    if parent:IsA("BasePart") then
+                                        targetPos = parent.Position
+                                    elseif parent:IsA("Model") and parent:FindFirstChild("HumanoidRootPart") then
+                                        targetPos = parent.HumanoidRootPart.Position
+                                    end
+                                    
+                                    if targetPos and (root.Position - targetPos).Magnitude <= RANGE then
+                                        pcall(function()
+                                            fireproximityprompt(prompt, 1, true)
+                                        end)
                                     end
                                 end
                             end
                         end
                     end
-                end)
-            else
-                for prompt, data in pairs(promptTracker) do
-                    if prompt:IsA("ProximityPrompt") then
-                        pcall(function()
-                            prompt.RequiresLineOfSight = data.originalRequiresLOS
-                            prompt.Exclusivity = data.originalExclusivity
-                        end)
-                    end
                 end
-                
-                if collectionThread then
-                    task.cancel(collectionThread)
-                    collectionThread = nil
+            end)
+        else
+            for prompt, data in pairs(promptTracker) do
+                if prompt:IsA("ProximityPrompt") then
+                    pcall(function()
+                        prompt.RequiresLineOfSight = data.originalRequiresLOS
+                        prompt.Exclusivity = data.originalExclusivity
+                    end)
                 end
             end
-        end)
-   end,
+            
+            if collectionThread then
+                task.cancel(collectionThread)
+                collectionThread = nil
+            end
+        end
+    end,
 })
 
 descendantConnection = workspace.DescendantAdded:Connect(function(obj)
@@ -904,171 +1183,95 @@ for _, farm in pairs(farms) do
     end
 end
 
-
-
-local Section = MainTab:CreateSection("Sell")
-
-local AutoSellToggle = MainTab:CreateToggle({
-   Name = "Auto Sell -When Inventory is full",
-   CurrentValue = false,
-   Flag = "asell",
-   Callback = function(Value)
-        pcall(function()
-            autoSellEnabled = Value
-            if autoSellEnabled then
-                autoSellThread = task.spawn(function()
-                    while autoSellEnabled and task.wait(1) do
-                        if isInventoryFull() then
-                            sellItems()
-                        end
+ACSection:CreateToggle({
+    Title = "Auto Sell",
+    Desc = "Automatically Sell When Inventory is full.",
+    Value = false,
+    Callback = function(v)
+        autoSellEnabled = v
+        if autoSellEnabled then
+            autoSellThread = task.spawn(function()
+                while autoSellEnabled and task.wait(1) do
+                    if isInventoryFull() then
+                        sellItems()
                     end
-                end)
-            elseif autoSellThread then
-                task.cancel(autoSellThread)
-            end
-        end)
-   end,
-})
-
-_G.instsell = false
-
-local InsSellToggle = MainTab:CreateToggle({
-   Name = "Instant Sell",
-   CurrentValue = false,
-   Flag = "insell",
-   Callback = function(v)
-        pcall(function()
-            _G.instsell = v
-
-            while _G.instsell do task.wait(1)
-                SellAll()
-            end
-        end)
-   end,
-})
-
-BuyTab:CreateSection("Auto Buy")
-
-BuyTab:CreateDropdown({
-    Name = "Select Seeds",
-    Options = seedItems,
-    CurrentOption = {},
-    MultipleOptions = true,
-    Flag = "sseeds",
-    Callback = function(Options)
-        pcall(function()
-            selectedSeeds = Options
-        end)
-    end
-})
-
-BuyTab:CreateDropdown({
-    Name = "Select Gear",
-    Info = "Choose which gear to auto buy",
-    Options = gearItems,
-    CurrentOption = {},
-    MultipleOptions = true,
-    Callback = function(Options)
-        pcall(function()
-            selectedGears = Options
-        end)
-    end
-})
-
-BuyTab:CreateToggle({
-    Name = "Auto Buy",
-    CurrentValue = false,
-    Callback = function(Value)
-        pcall(function()
-            autoBuyEnabled = Value
-        end)
-    end
-})
-
-BuyTab:CreateToggle({
-    Name = "Auto Buy Eggs",
-    CurrentValue = false,
-    Callback = function(value)
-        pcall(function()
-            Autoegg_autoBuyEnabled = value
-            if Autoegg_autoBuyEnabled then
-                Autoegg_firstRun = true
-                Autoegg_autoBuyEggs()
-            end
-        end)
-    end
-})
--- Auto Buy Logic
-local function getItemPrice(path, item)
-    local container = path:FindFirstChild(item)
-    if not container then return math.huge end
-    local frame = container:FindFirstChild("Frame")
-    if not frame then return math.huge end
-    local buyBtn = frame:FindFirstChild("Sheckles_Buy")
-    if not buyBtn then return math.huge end
-    local inStock = buyBtn:FindFirstChild("In_Stock")
-    if not inStock then return math.huge end
-    local costText = inStock:FindFirstChild("Cost_Text")
-    if not costText or not costText.Text then return math.huge end
-    return parseMoney(costText.Text)
-end
-
-local function tryPurchase(path, remote, item)
-    local itemPrice = getItemPrice(path, item)
-    local playerMoney = getPlayerMoney()
-    if playerMoney > 0 and itemPrice > 0 and playerMoney >= itemPrice then
-        local container = path:FindFirstChild(item)
-        if container and container:FindFirstChild("Frame") then
-            local buyBtn = container.Frame:FindFirstChild("Sheckles_Buy")
-            if buyBtn and buyBtn:FindFirstChild("In_Stock") and buyBtn.In_Stock.Visible then
-                remote:FireServer(item)
-                return true
-            end
+                end
+            end)
+        elseif autoSellThread then
+            task.cancel(autoSellThread)
         end
-    end
-    return false
-end
-
-pcall(function()
-    task.spawn(function()
-        while task.wait(0.5) do
-            if autoBuyEnabledE then
-                for _, seed in ipairs(selectedSeeds) do
-                    tryPurchase(seedPath, seedRemote, seed)
-                end
-                for _, gear in ipairs(selectedGears) do
-                    tryPurchase(gearPath, gearRemote, gear)
-                end
-                for _, item in ipairs(selectedBMItems) do
-                    tryPurchase(bmPath, dmRemote, item)
-                end
-            end
-        end
-    end)
-end)
-
-BuyTab:CreateDropdown({
-    Name = "Blood Moon Items",
-    Description = "Choose which Blood Moon items to auto buy",
-    Options = bmItems,
-    CurrentOption = {},
-    MultipleOptions = true,
-    Flag = "bmi",
-    Callback = function(Options)
-        pcall(function()
-            selectedBMItems = Options
-        end)
     end,
 })
-BuyTab:CreateToggle({
-    Name = "Auto Buy BloodMoon Items",
-    CurrentValue = false,
-    Flag = "abmi",
-    Callback = function(Value)
-        pcall(function()
-            autoBuyEnabledE = Value
-        end)
-    end
+
+ACSection:CreateToggle({
+    Title = "Insta Sell",
+    Desc = "Instantly Sell",
+    Value = false,
+    Callback = function(v)
+        autoSellEnabled = v
+        if autoSellEnabled then
+            autoSellThread = task.spawn(function()
+                while autoSellEnabled and task.wait(1) do
+                    if isInventoryFull() then
+                        sellItems()
+                    end
+                end
+            end)
+        elseif autoSellThread then
+            task.cancel(autoSellThread)
+        end
+    end,
 })
 
-Rayfield:LoadConfiguration()
+ACSection:Line()
+
+ACSection:Paragarp({
+    Title = "Auto Favorite",
+    Desc = "Please Select Mutations First"
+})
+
+ACSection:Dropdown({
+    Title = "Select Mutation",
+    Multi = true,
+	List = mutationOptions,
+	Value = selectedMutations,
+	Callback = function(Options)
+        selectedMutations = Options
+        if autoFavoriteEnabled then
+            processBackpack()
+        end
+    end,
+})
+
+ACSection:CreateToggle({
+    Title = "Auto Favorite",
+    Desc = "Automatically Favorite Fruits with the right Mutations",
+    Value = false,
+    Callback = function(v)
+        autoFavoriteEnabled = v
+        if Value then
+            setupAutoFavorite()
+        elseif connection then
+            connection:Disconnect()
+            connection = nil
+        end
+    end,
+})
+
+local function Unfavall()
+    local backpack = lp:FindFirstChild("Backpack") or lp:WaitForChild("Backpack")
+    for _, tool in ipairs(backpack:GetChildren()) do
+        local isFavorited = tool:GetAttribute("Favorite") or (tool:FindFirstChild("Favorite") and tool.Favorite.Value)
+        if isFavorited then
+            favoriteEvent:FireServer(tool)
+            task.wait()
+        end
+    end
+end
+
+ACSection:CreateButton({
+    Title = "Un-Favorite ALl",
+    Desc = "(Might Un-Favorite Your Important Fruits!)",
+    Callback = Unfavall
+})
+
