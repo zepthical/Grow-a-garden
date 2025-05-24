@@ -1263,7 +1263,7 @@ ACSection:CreateToggle({
     Callback = function(v)
         pcall(function()
             autoFavoriteEnabled = v
-            if Value then
+            if v then
                 setupAutoFavorite()
             elseif connection then
                 connection:Disconnect()
