@@ -1058,6 +1058,7 @@ local function DestoryOthersFarm()
     end
 end
 
+pcall(function()
 local Env = loadstring(game:HttpGet("https://raw.githubusercontent.com/MerrySubs4t/96soul/refs/heads/main/Utilities/NongkhawKawaii-UI.luau", true))()
 
 local Banner = {
@@ -1283,11 +1284,10 @@ local function Unfavall()
     end
 end
 
-ACSection:CreateButton({
+end)
+--[[ACSection:CreateButton({
     Title = "Un-Favorite ALl",
     Desc = "(Might Un-Favorite Your Important Fruits!)",
-    Callback = pcall(function()
-        Unfavall
-    end)
-})
+    Callback = Unfavall
+})]]
 
