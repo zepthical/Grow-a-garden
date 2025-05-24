@@ -1094,13 +1094,15 @@ ACSection:CreateToggle({
     Desc = "Automatically Collect Fruits",
     Value = false,
     Callback = function(v)
-        fastClickEnabled = v
-        if fastClickEnabled then
-            fastClickFarm()
-        elseif fastClickThread then
-            task.cancel(fastClickThread)
-            fastClickThread = nil
-        end
+        pcall(function()
+            fastClickEnabled = v
+            if fastClickEnabled then
+                fastClickFarm()
+            elseif fastClickThread then
+                task.cancel(fastClickThread)
+                fastClickThread = nil
+            end
+        end)
     end,
 })
 
@@ -1109,97 +1111,103 @@ ACSection:CreateToggle({
     Desc = "Automatically Collect Nearby Fruits",
     Value = false,
     Callback = function(v)
-        spamE = v
-        updateFarmData()
-        
-        for _, farm in pairs(farms) do
-            for _, obj in ipairs(farm:GetDescendants()) do
-                if obj:IsA("ProximityPrompt") then
-                    handleNewPrompt(obj)
+        pcall(function()
+            spamE = v
+            updateFarmData()
+            
+            for _, farm in pairs(farms) do
+                for _, obj in ipairs(farm:GetDescendants()) do
+                    if obj:IsA("ProximityPrompt") then
+                        handleNewPrompt(obj)
+                    end
                 end
             end
-        end
-        
-        if spamE then
-            collectionThread = task.spawn(function()
-                while spamE and task.wait(0.1) do
-                    if not isInventoryFull() then
-                        local plr = game.Players.LocalPlayer
-                        local char = plr and plr.Character
-                        local root = char and char:FindFirstChild("HumanoidRootPart")
-                        
-                        if root then
-                            for prompt, _ in pairs(promptTracker) do
-                                if prompt:IsA("ProximityPrompt") and prompt.Enabled and prompt.KeyboardKeyCode == Enum.KeyCode.E then
-                                    local targetPos
-                                    local parent = prompt.Parent
-                                    
-                                    if parent:IsA("BasePart") then
-                                        targetPos = parent.Position
-                                    elseif parent:IsA("Model") and parent:FindFirstChild("HumanoidRootPart") then
-                                        targetPos = parent.HumanoidRootPart.Position
-                                    end
-                                    
-                                    if targetPos and (root.Position - targetPos).Magnitude <= RANGE then
-                                        pcall(function()
-                                            fireproximityprompt(prompt, 1, true)
-                                        end)
+            
+            if spamE then
+                collectionThread = task.spawn(function()
+                    while spamE and task.wait(0.1) do
+                        if not isInventoryFull() then
+                            local plr = game.Players.LocalPlayer
+                            local char = plr and plr.Character
+                            local root = char and char:FindFirstChild("HumanoidRootPart")
+                            
+                            if root then
+                                for prompt, _ in pairs(promptTracker) do
+                                    if prompt:IsA("ProximityPrompt") and prompt.Enabled and prompt.KeyboardKeyCode == Enum.KeyCode.E then
+                                        local targetPos
+                                        local parent = prompt.Parent
+                                        
+                                        if parent:IsA("BasePart") then
+                                            targetPos = parent.Position
+                                        elseif parent:IsA("Model") and parent:FindFirstChild("HumanoidRootPart") then
+                                            targetPos = parent.HumanoidRootPart.Position
+                                        end
+                                        
+                                        if targetPos and (root.Position - targetPos).Magnitude <= RANGE then
+                                            pcall(function()
+                                                fireproximityprompt(prompt, 1, true)
+                                            end)
+                                        end
                                     end
                                 end
                             end
                         end
                     end
+                end)
+            else
+                for prompt, data in pairs(promptTracker) do
+                    if prompt:IsA("ProximityPrompt") then
+                        pcall(function()
+                            prompt.RequiresLineOfSight = data.originalRequiresLOS
+                            prompt.Exclusivity = data.originalExclusivity
+                        end)
+                    end
                 end
-            end)
-        else
-            for prompt, data in pairs(promptTracker) do
-                if prompt:IsA("ProximityPrompt") then
-                    pcall(function()
-                        prompt.RequiresLineOfSight = data.originalRequiresLOS
-                        prompt.Exclusivity = data.originalExclusivity
-                    end)
+                
+                if collectionThread then
+                    task.cancel(collectionThread)
+                    collectionThread = nil
                 end
             end
-            
-            if collectionThread then
-                task.cancel(collectionThread)
-                collectionThread = nil
-            end
-        end
+        end)
     end,
 })
 
-descendantConnection = workspace.DescendantAdded:Connect(function(obj)
-    if obj:IsA("ProximityPrompt") and isInsideFarm(obj) then
-        handleNewPrompt(obj)
-    end
-end)
-
-for _, farm in pairs(farms) do
-    for _, obj in ipairs(farm:GetDescendants()) do
-        if obj:IsA("ProximityPrompt") then
+pcall(function()
+    descendantConnection = workspace.DescendantAdded:Connect(function(obj)
+        if obj:IsA("ProximityPrompt") and isInsideFarm(obj) then
             handleNewPrompt(obj)
         end
+    end)
+
+    for _, farm in pairs(farms) do
+        for _, obj in ipairs(farm:GetDescendants()) do
+            if obj:IsA("ProximityPrompt") then
+                handleNewPrompt(obj)
+            end
+        end
     end
-end
+end)
 
 ACSection:CreateToggle({
     Title = "Auto Sell",
     Desc = "Automatically Sell When Inventory is full.",
     Value = false,
     Callback = function(v)
-        autoSellEnabled = v
-        if autoSellEnabled then
-            autoSellThread = task.spawn(function()
-                while autoSellEnabled and task.wait(1) do
-                    if isInventoryFull() then
-                        sellItems()
+        pcall(function()
+            autoSellEnabled = v
+            if autoSellEnabled then
+                autoSellThread = task.spawn(function()
+                    while autoSellEnabled and task.wait(1) do
+                        if isInventoryFull() then
+                            sellItems()
+                        end
                     end
-                end
-            end)
-        elseif autoSellThread then
-            task.cancel(autoSellThread)
-        end
+                end)
+            elseif autoSellThread then
+                task.cancel(autoSellThread)
+            end
+        end)
     end,
 })
 
@@ -1208,18 +1216,20 @@ ACSection:CreateToggle({
     Desc = "Instantly Sell",
     Value = false,
     Callback = function(v)
-        autoSellEnabled = v
-        if autoSellEnabled then
-            autoSellThread = task.spawn(function()
-                while autoSellEnabled and task.wait(1) do
-                    if isInventoryFull() then
-                        sellItems()
+        pcall(function()
+            autoSellEnabled = v
+            if autoSellEnabled then
+                autoSellThread = task.spawn(function()
+                    while autoSellEnabled and task.wait(1) do
+                        if isInventoryFull() then
+                            sellItems()
+                        end
                     end
-                end
-            end)
-        elseif autoSellThread then
-            task.cancel(autoSellThread)
-        end
+                end)
+            elseif autoSellThread then
+                task.cancel(autoSellThread)
+            end
+        end)
     end,
 })
 
@@ -1236,10 +1246,12 @@ ACSection:Dropdown({
 	List = mutationOptions,
 	Value = selectedMutations,
 	Callback = function(Options)
-        selectedMutations = Options
-        if autoFavoriteEnabled then
-            processBackpack()
-        end
+        pcall(function()
+            selectedMutations = Options
+            if autoFavoriteEnabled then
+                processBackpack()
+            end
+        end)
     end,
 })
 
@@ -1248,13 +1260,15 @@ ACSection:CreateToggle({
     Desc = "Automatically Favorite Fruits with the right Mutations",
     Value = false,
     Callback = function(v)
-        autoFavoriteEnabled = v
-        if Value then
-            setupAutoFavorite()
-        elseif connection then
-            connection:Disconnect()
-            connection = nil
-        end
+        pcall(function()
+            autoFavoriteEnabled = v
+            if Value then
+                setupAutoFavorite()
+            elseif connection then
+                connection:Disconnect()
+                connection = nil
+            end
+        end)
     end,
 })
 
@@ -1272,6 +1286,8 @@ end
 ACSection:CreateButton({
     Title = "Un-Favorite ALl",
     Desc = "(Might Un-Favorite Your Important Fruits!)",
-    Callback = Unfavall
+    Callback = pcall(function()
+        Unfavall
+    end)
 })
 
